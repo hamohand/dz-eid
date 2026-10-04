@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dz-eid — Démonstration de lecture CNIe</title>
+<style>
+  :root {
+    --bg: #0f172a; --panel: #ffffff; --ink: #0f172a; --muted: #64748b; --line: #e2e8f0;
+    --brand: #047857; --brand-2: #10b981; --danger: #dc2626; --warn: #d97706; --soft: #f1f5f9;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", system-ui, -apple-system, sans-serif; color: var(--ink);
+         background: linear-gradient(160deg, #0f172a 0%, #134e4a 100%); min-height: 100vh; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 18px 32px; color: #fff; }
+  header h1 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: .3px; }
+  header h1 span { color: var(--brand-2); }
+  .pills { display: flex; gap: 10px; flex-wrap: wrap; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px;
+          background: rgba(255,255,255,.1); font-size: 13px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #94a3b8; }
+  .dot.ok { background: #22c55e; box-shadow: 0 0 8px #22c55e; } .dot.ko { background: #ef4444; }
+  .dot.wait { background: #f59e0b; }
+  main { display: grid; grid-template-columns: 380px 1fr; gap: 24px; padding: 8px 32px 32px; max-width: 1280px; margin: 0 auto; }
+  @media (max-width: 960px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border-radius: 14px; padding: 22px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+  .card h2 { margin: 0 0 14px; font-size: 16px; }
+  label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin: 12px 0 4px; text-transform: uppercase; letter-spacing: .4px; }
+  input[type=text], textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px;
+         font-size: 15px; font-family: Consolas, "Courier New", monospace; }
+  textarea { height: 78px; resize: vertical; font-size: 12px; }
+  input:focus, textarea:focus { outline: 2px solid var(--brand-2); border-color: transparent; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .checks { display: flex; gap: 16px; margin-top: 14px; font-size: 14px; }
+  .checks label { display: flex; align-items: center; gap: 6px; margin: 0; text-transform: none; font-weight: 500; color: var(--ink); letter-spacing: 0; }
+  button.primary { width: 100%; margin-top: 18px; padding: 13px; border: 0; border-radius: 10px; background: var(--brand);
+         color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; transition: background .15s; }
+  button.primary:hover { background: #065f46; } button.primary:disabled { background: #94a3b8; cursor: wait; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .progress { margin-top: 16px; display: none; } .progress.on { display: block; }
+  .bar { height: 8px; background: var(--soft); border-radius: 999px; overflow: hidden; }
+  .bar > div { height: 100%; width: 0; background: linear-gradient(90deg, var(--brand), var(--brand-2)); transition: width .3s; }
+  .progress p { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+  .alert { margin-top: 14px; padding: 12px 14px; border-radius: 8px; font-size: 14px; display: none; }
+  .alert.on { display: block; } .alert.err { background: #fef2f2; color: var(--danger); border: 1px solid #fecaca; }
+  .empty { text-align: center; color: var(--muted); padding: 70px 20px; }
+  .empty .big { font-size: 46px; margin-bottom: 10px; }
+  .identity { display: none; } .identity.on { display: block; }
+  .top { display: flex; gap: 22px; align-items: flex-start; }
+  .photo { width: 150px; height: 190px; border-radius: 10px; background: var(--soft); object-fit: cover; flex-shrink: 0;
+           display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; text-align: center; border: 1px solid var(--line); }
+  .names { flex: 1; }
+  .names .latin { font-size: 24px; font-weight: 700; margin: 0; }
+  .names .arabic { font-size: 30px; font-family: "Traditional Arabic", "Arabic Typesetting", "Segoe UI", sans-serif;
+           direction: rtl; text-align: right; margin: 6px 0 0; color: #134e4a; }
+  .nin { margin-top: 12px; display: inline-block; padding: 6px 12px; background: #ecfdf5; color: var(--brand); border-radius: 8px;
+         font-family: Consolas, monospace; font-size: 16px; font-weight: 600; letter-spacing: 1px; }
+  .badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .badge { padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .badge.VALID { background: #dcfce7; color: #166534; } .badge.INVALID { background: #fee2e2; color: #991b1b; }
+  .badge.NOT_CHECKED { background: #f1f5f9; color: #475569; }
+  .summary { margin-top: 10px; font-size: 13px; color: var(--muted); }
+  .summary.bad { color: var(--danger); font-weight: 600; }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px 24px; margin-top: 22px; }
+  .field { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .field .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+  .field .v { font-size: 15px; margin-top: 3px; min-height: 20px; }
+  .field .v .ar { direction: rtl; unicode-bidi: isolate; font-size: 17px; color: #134e4a; margin-left: 8px; }
+  .warnings { margin-top: 16px; padding: 10px 14px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; font-size: 13px; color: #92400e; display: none; }
+  details { margin-top: 18px; } summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+  pre { background: #0f172a; color: #d1fae5; padding: 14px; border-radius: 8px; font-size: 12px; max-height: 360px; overflow: auto; }
+  .tools { display: flex; gap: 8px; margin-top: 8px; }
+  .tools button { padding: 6px 12px; border: 1px solid var(--line); background: #fff; border-radius: 6px; cursor: pointer; font-size: 12px; }
+  .log { margin-top: 18px; font-family: Consolas, monospace; font-size: 11px; color: var(--muted); max-height: 120px; overflow: auto;
+         background: var(--soft); border-radius: 8px; padding: 8px 10px; }
+  footer { text-align: center; color: rgba(255,255,255,.55); font-size: 12px; padding-bottom: 24px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>dz-<span>eid</span> · Lecture de CNIe biométrique</h1>
+  <div class="pills">
+    <span class="pill"><span class="dot" id="agentDot"></span><span id="agentText">Agent…</span></span>
+    <span class="pill"><span class="dot" id="readerDot"></span><span id="readerText">Lecteur…</span></span>
+    <span class="pill"><span class="dot" id="cardDot"></span><span id="cardText">Carte…</span></span>
+  </div>
+</header>
+
+<main>
+  <section class="card">
+    <h2>1. Clé d'accès (MRZ au verso de la carte)</h2>
+    <label for="mrz">Coller la MRZ complète (facultatif)</label>
+    <textarea id="mrz" placeholder="IDDZA1234567890&lt;&lt;&lt;…&#10;8503127F3105208DZA&lt;&lt;&lt;…&#10;NOM&lt;&lt;PRENOM&lt;&lt;&lt;…" spellcheck="false"></textarea>
+    <div class="hint">Les champs ci-dessous se remplissent automatiquement.</div>
+
+    <label for="doc">N° du document</label>
+    <input type="text" id="doc" maxlength="22" autocomplete="off" spellcheck="false">
+    <div class="row">
+      <div><label for="dob">Naissance (AAMMJJ)</label><input type="text" id="dob" maxlength="10" autocomplete="off"></div>
+      <div><label for="doe">Expiration (AAMMJJ)</label><input type="text" id="doe" maxlength="10" autocomplete="off"></div>
+    </div>
+    <div class="checks">
+      <label><input type="checkbox" id="photo" checked> Lire la photo</label>
+      <label><input type="checkbox" id="raw"> Données brutes</label>
+    </div>
+
+    <h2 style="margin-top:22px">2. Poser la carte sur le lecteur</h2>
+    <button class="primary" id="readBtn">Lire la carte</button>
+    <div class="progress" id="progress"><div class="bar"><div id="barFill"></div></div><p id="progressText"></p></div>
+    <div class="alert err" id="error"></div>
+    <div class="log" id="log"></div>
+  </section>
+
+  <section class="card">
+    <div class="empty" id="empty">
+      <div class="big">🪪</div>
+      <div>Le résultat de la lecture s'affichera ici.</div>
+      <div class="hint">Aucune donnée n'est conservée : tout reste sur ce poste.</div>
+    </div>
+
+    <div class="identity" id="identity">
+      <div class="top">
+        <div class="photo" id="photoBox">Photo non lue</div>
+        <div class="names">
+          <p class="latin" id="nameLatin"></p>
+          <p class="arabic" id="nameArabic"></p>
+          <span class="nin" id="nin"></span>
+          <div class="badges" id="badges"></div>
+          <div class="summary" id="paSummary"></div>
+        </div>
+      </div>
+      <div class="grid" id="fields"></div>
+      <div class="warnings" id="warnings"></div>
+      <details>
+        <summary>Réponse JSON complète (contrat IdentityRecord v1)</summary>
+        <div class="tools"><button id="copyBtn">Copier le JSON</button></div>
+        <pre id="json"></pre>
+      </details>
+    </div>
+  </section>
+</main>
+<footer>dz-eid · démonstration locale · les données lues ne quittent pas ce poste</footer>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const base = location.origin;
+  let lastJson = '';
+
+  const log = (msg) => {
+    const line = document.createElement('div');
+    line.textContent = new Date().toLocaleTimeString() + '  ' + msg;
+    $('log').prepend(line);
+  };
+  const setPill = (dot, textEl, state, text) => { $(dot).className = 'dot ' + state; $(textEl).textContent = text; };
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  // ---------- État des lecteurs ----------
+  function showReaders(readers) {
+    if (!readers || readers.length === 0) {
+      setPill('readerDot', 'readerText', 'ko', 'Aucun lecteur');
+      setPill('cardDot', 'cardText', '', 'Carte —');
+      return;
+    }
+    const r = readers[0];
+    setPill('readerDot', 'readerText', 'ok', r.name.replace(/\s+\d+$/, ''));
+    setPill('cardDot', 'cardText', r.cardPresent ? 'ok' : 'wait', r.cardPresent ? 'Carte posée' : 'Pas de carte');
+  }
+
+  async function refreshStatus() {
+    try {
+      const res = await fetch(base + '/v1/status');
+      const s = await res.json();
+      setPill('agentDot', 'agentText', 'ok', 'Agent ' + s.version);
+      showReaders(s.readers);
+    } catch (e) {
+      setPill('agentDot', 'agentText', 'ko', 'Agent injoignable');
+    }
+  }
+
+  // ---------- Événements temps réel ----------
+  function connectEvents() {
+    const ws = new WebSocket(base.replace(/^http/, 'ws') + '/v1/events');
+    ws.onmessage = (m) => {
+      const ev = JSON.parse(m.data);
+      switch (ev.type) {
+        case 'HELLO': case 'READERS_CHANGED': showReaders(ev.readers); if (ev.type !== 'HELLO') log('Lecteurs : ' + (ev.readers || []).length); break;
+        case 'CARD_INSERTED': setPill('cardDot', 'cardText', 'ok', 'Carte posée'); log('Carte posée'); break;
+        case 'CARD_REMOVED': setPill('cardDot', 'cardText', 'wait', 'Pas de carte'); log('Carte retirée'); break;
+        case 'WAITING_FOR_CARD': progress(10, 'Posez la carte sur le lecteur…'); log('En attente de la carte'); break;
+        case 'PROGRESS': progress(ev.percent, ev.message); break;
+        case 'READ_COMPLETED': log('Lecture terminée en ' + ev.durationMs + ' ms'); break;
+        case 'READ_FAILED': log('Échec : ' + ev.code); break;
+      }
+    };
+    ws.onopen = () => log('Connecté aux événements de l\'agent');
+    ws.onclose = () => { setPill('agentDot', 'agentText', 'ko', 'Agent déconnecté'); setTimeout(() => { refreshStatus(); connectEvents(); }, 3000); };
+  }
+
+  // ---------- MRZ → champs ----------
+  $('mrz').addEventListener('input', () => {
+    const m = $('mrz').value.toUpperCase().replace(/\s/g, '');
+    let doc, dob, doe;
+    if (m.length === 90) { doc = m.substring(5, 14); dob = m.substring(30, 36); doe = m.substring(38, 44); }
+    else if (m.length === 88) { doc = m.substring(44, 53); dob = m.substring(57, 63); doe = m.substring(65, 71); }
+    if (doc) { $('doc').value = doc.replace(/</g, ''); $('dob').value = dob; $('doe').value = doe; }
+  });
+
+  // ---------- Lecture ----------
+  function progress(pct, text) {
+    $('progress').classList.add('on');
+    $('barFill').style.width = (pct || 0) + '%';
+    $('progressText').textContent = text || '';
+  }
+
+  $('readBtn').addEventListener('click', async () => {
+    $('error').classList.remove('on');
+    const body = { readPhoto: $('photo').checked, includeRaw: $('raw').checked };
+    const mrz = $('mrz').value.trim();
+    if (mrz.replace(/\s/g, '').length >= 72) body.mrz = mrz;
+    else Object.assign(body, { documentNumber: $('doc').value, dateOfBirth: $('dob').value, dateOfExpiry: $('doe').value });
+
+    $('readBtn').disabled = true;
+    progress(3, 'Démarrage de la lecture…');
+    try {
+      const res = await fetch(base + '/v1/read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) throw data.error || { message: 'Erreur ' + res.status };
+      render(data);
+      progress(100, 'Lecture terminée.');
+    } catch (e) {
+      $('error').textContent = (e.code ? '[' + e.code + '] ' : '') + (e.message || e);
+      $('error').classList.add('on');
+      $('progress').classList.remove('on');
+    } finally {
+      $('readBtn').disabled = false;
+    }
+  });
+
+  // ---------- Affichage ----------
+  function render(r) {
+    const h = r.holder || {}, d = r.document || {}, v = r.verification || {}, pa = v.passiveAuthentication || {};
+    $('empty').style.display = 'none';
+    $('identity').classList.add('on');
+
+    if (r.photo && r.photo.mimeType === 'image/jpeg') {
+      $('photoBox').outerHTML = '<img class="photo" id="photoBox" alt="Photo du titulaire" src="data:image/jpeg;base64,' + r.photo.base64 + '">';
+    } else {
+      $('photoBox').outerHTML = '<div class="photo" id="photoBox">' + (r.photo ? 'Photo au format ' + esc(r.photo.mimeType) : 'Photo non lue') + '</div>';
+    }
+
+    $('nameLatin').textContent = [h.lastNameLatin, h.firstNameLatin].filter(Boolean).join(' ');
+    $('nameArabic').textContent = [h.lastNameArabic, h.firstNameArabic].filter(Boolean).join(' ');
+    $('nin').textContent = h.nin ? 'NIN ' + h.nin : 'NIN non disponible';
+
+    const labels = { dataIntegrity: 'Intégrité', signature: 'Signature', certificateChain: 'Chaîne CSCA' };
+    $('badges').innerHTML = '<span class="badge VALID">Accès ' + esc(v.accessMethod) + '</span>' +
+      Object.keys(labels).map(k => '<span class="badge ' + esc(pa[k]) + '">' + labels[k] + ' : ' + esc(frStatus(pa[k])) + '</span>').join('');
+    $('paSummary').textContent = pa.summary || '';
+    $('paSummary').className = 'summary' + ((pa.summary || '').startsWith('ALERTE') ? ' bad' : '');
+
+    const bi = (lat, ar) => esc(lat || '') + (ar ? '<span class="ar">' + esc(ar) + '</span>' : '');
+    const rows = [
+      ['Date de naissance', esc(fmtDate(h.dateOfBirth))],
+      ['Lieu de naissance', bi(h.placeOfBirthLatin, h.placeOfBirthArabic)],
+      ['Sexe', bi(h.sex === 'M' ? 'Masculin' : h.sex === 'F' ? 'Féminin' : h.sex, h.sexArabic)],
+      ['Groupe sanguin', esc(h.bloodGroup || '—')],
+      ['Nationalité', esc(h.nationality)],
+      ['Document', bi(d.nameLatin || d.type, d.nameArabic)],
+      ['N° du document', esc(d.number)],
+      ['Délivré le', esc(fmtDate(d.dateOfIssue))],
+      ['Expire le', esc(fmtDate(d.dateOfExpiry)) + (isExpired(d.dateOfExpiry) ? ' <b style="color:#dc2626">(expiré)</b>' : '')],
+      ['Autorité', bi(d.issuingAuthorityLatin, d.issuingAuthorityArabic)],
+    ];
+    $('fields').innerHTML = rows.map(([k, val]) => '<div class="field"><div class="k">' + k + '</div><div class="v">' + (val || '—') + '</div></div>').join('');
+
+    const w = (r.warnings || []).concat(pa.details || []);
+    $('warnings').style.display = w.length ? 'block' : 'none';
+    $('warnings').innerHTML = w.map(x => '⚠ ' + esc(x)).join('<br>');
+
+    const shown = JSON.parse(JSON.stringify(r));
+    if (shown.photo) shown.photo.base64 = shown.photo.base64.substring(0, 60) + '… (' + r.photo.base64.length + ' caractères)';
+    lastJson = JSON.stringify(r, null, 2);
+    $('json').textContent = JSON.stringify(shown, null, 2);
+  }
+
+  const frStatus = (s) => ({ VALID: 'valide', INVALID: 'INVALIDE', NOT_CHECKED: 'non vérifiée' }[s] || '—');
+  const fmtDate = (iso) => iso ? iso.split('-').reverse().join('/') : '—';
+  const isExpired = (iso) => iso && new Date(iso) < new Date();
+
+  $('copyBtn').addEventListener('click', () => navigator.clipboard.writeText(lastJson).then(() => log('JSON copié')));
+
+  refreshStatus();
+  connectEvents();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+# Build
+.gradle/
+build/
+out/
+*.class
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Données personnelles réelles : NE JAMAIS VERSIONNER
+private-fixtures/
+*.dump.json
+
+# Configuration locale de l'agent
+config.local.json
