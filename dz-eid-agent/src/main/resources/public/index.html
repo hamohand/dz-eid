@@ -162,9 +162,13 @@
       setPill('cardDot', 'cardText', '', 'Carte —');
       return;
     }
-    const r = readers[0];
-    setPill('readerDot', 'readerText', 'ok', r.name.replace(/\s+\d+$/, ''));
-    setPill('cardDot', 'cardText', r.cardPresent ? 'ok' : 'wait', r.cardPresent ? 'Carte posée' : 'Pas de carte');
+    const shortName = (n) => n.replace(/\s+\d+$/, '');
+    const withCard = readers.find(r => r.cardPresent);
+    const label = withCard ? shortName(withCard.name)
+      : readers.length === 1 ? shortName(readers[0].name) : readers.length + ' lecteurs';
+    $('readerText').title = readers.map(r => r.name).join('\n');
+    setPill('readerDot', 'readerText', 'ok', label);
+    setPill('cardDot', 'cardText', withCard ? 'ok' : 'wait', withCard ? 'Carte posée' : 'Pas de carte');
   }
 
   async function refreshStatus() {
@@ -185,12 +189,12 @@
       const ev = JSON.parse(m.data);
       switch (ev.type) {
         case 'HELLO': case 'READERS_CHANGED': showReaders(ev.readers); if (ev.type !== 'HELLO') log('Lecteurs : ' + (ev.readers || []).length); break;
-        case 'CARD_INSERTED': setPill('cardDot', 'cardText', 'ok', 'Carte posée'); log('Carte posée'); break;
-        case 'CARD_REMOVED': setPill('cardDot', 'cardText', 'wait', 'Pas de carte'); log('Carte retirée'); break;
+        case 'CARD_INSERTED': refreshStatus(); log('Carte posée (' + ev.reader + ')'); break;
+        case 'CARD_REMOVED': refreshStatus(); log('Carte retirée (' + ev.reader + ')'); break;
         case 'WAITING_FOR_CARD': progress(10, 'Posez la carte sur le lecteur…'); log('En attente de la carte'); break;
         case 'PROGRESS': progress(ev.percent, ev.message); break;
         case 'READ_COMPLETED': log('Lecture terminée en ' + ev.durationMs + ' ms'); break;
-        case 'READ_FAILED': log('Échec : ' + ev.code); break;
+        case 'READ_FAILED': log('Échec : ' + ev.code + ' — ' + (ev.message || '')); break;
       }
     };
     ws.onopen = () => log('Connecté aux événements de l\'agent');

@@ -9,6 +9,7 @@ import javax.smartcardio.TerminalFactory;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.logging.Level;
@@ -49,28 +50,50 @@ final class PcscReaders {
     }
 
     /**
-     * Choisit le lecteur : celui dont le nom contient {@code preferred}, sinon le premier lecteur
-     * sans contact (CL / Contactless / PICC), sinon le premier lecteur.
+     * Lecteurs candidats, classés par ordre de préférence.
+     * <ul>
+     *   <li>si {@code preferred} est renseigné : uniquement les lecteurs dont le nom le contient
+     *       (erreur NO_READER explicite si aucun ne correspond) ;</li>
+     *   <li>sinon : tous les lecteurs, les lecteurs sans contact compatibles ICAO d'abord
+     *       (Identiv/uTrust, HID/Omnikey…), les ACR122 (peu fiables avec les CNIe) en dernier.</li>
+     * </ul>
      */
-    CardTerminal select(String preferred) throws EidException {
+    List<CardTerminal> candidates(String preferred) throws EidException {
         List<CardTerminal> terminals = list();
         if (terminals.isEmpty()) {
             throw new EidException(ErrorCode.NO_READER, "Aucun lecteur de carte détecté. Branchez le lecteur USB.");
         }
+        List<CardTerminal> result = new ArrayList<>();
         if (preferred != null && !preferred.isBlank()) {
+            String p = preferred.toLowerCase(Locale.ROOT);
             for (CardTerminal t : terminals) {
-                if (t.getName().toLowerCase(Locale.ROOT).contains(preferred.toLowerCase(Locale.ROOT))) {
-                    return t;
+                if (t.getName().toLowerCase(Locale.ROOT).contains(p)) {
+                    result.add(t);
                 }
             }
-        }
-        for (CardTerminal t : terminals) {
-            String n = t.getName().toLowerCase(Locale.ROOT);
-            if (n.contains(" cl ") || n.contains("contactless") || n.contains("picc") || n.endsWith(" cl")) {
-                return t;
+            if (result.isEmpty()) {
+                throw new EidException(ErrorCode.NO_READER,
+                        "Le lecteur configuré « " + preferred + " » est introuvable.");
             }
+            return result;
         }
-        return terminals.get(0);
+        result.addAll(terminals);
+        result.sort(Comparator.comparingInt((CardTerminal t) -> rank(t.getName())));
+        return result;
+    }
+
+    /** Rang d'un lecteur d'après son nom (plus petit = préféré). Fonction pure, testable. */
+    static int rank(String name) {
+        String n = name == null ? "" : name.toLowerCase(Locale.ROOT);
+        if (n.contains("acr122")) {
+            return 90;
+        }
+        boolean contactless = n.contains(" cl ") || n.endsWith(" cl") || n.contains("contactless")
+                || n.contains("picc") || n.contains("nfc");
+        if (n.contains("utrust") || n.contains("identiv") || n.contains("hid") || n.contains("omnikey")) {
+            return contactless ? 0 : 20;
+        }
+        return contactless ? 10 : 30;
     }
 
     static boolean isCardPresent(CardTerminal t) {

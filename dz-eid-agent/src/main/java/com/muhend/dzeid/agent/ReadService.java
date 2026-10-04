@@ -12,6 +12,8 @@ import net.sf.scuba.smartcards.TerminalCardService;
 
 import javax.smartcardio.CardException;
 import javax.smartcardio.CardTerminal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Logger;
 
@@ -46,8 +48,8 @@ final class ReadService {
         }
         long start = System.currentTimeMillis();
         try {
-            CardTerminal terminal = readers.select(config.preferredReader());
-            waitForCard(terminal);
+            CardTerminal terminal = waitForCard(readers.candidates(config.preferredReader()));
+            LOG.info("Carte détectée sur le lecteur : " + terminal.getName());
 
             TerminalCardService card = new TerminalCardService(terminal);
             ReadOptions options = new ReadOptions(readPhoto, includeRaw, true, cscaStore);
@@ -73,7 +75,9 @@ final class ReadService {
                 }
             }
         } catch (EidException e) {
-            LOG.info("Lecture échouée : " + e.code());
+            Throwable cause = e.getCause();
+            LOG.info("Lecture échouée : " + e.code() + " - " + e.getMessage()
+                    + (cause != null ? " (cause : " + cause + ")" : ""));
             hub.broadcast("READ_FAILED", EventHub.payload("code", e.code().name(), "message", e.getMessage()));
             throw e;
         } finally {
@@ -81,23 +85,50 @@ final class ReadService {
         }
     }
 
-    private void waitForCard(CardTerminal terminal) throws EidException {
-        if (PcscReaders.isCardPresent(terminal)) {
-            return;
+    /**
+     * Attend qu'une carte soit posée sur l'un des lecteurs candidats et renvoie ce lecteur.
+     * On interroge chaque lecteur par {@code isCardPresent} (pas de {@code waitForCardPresent},
+     * qui bloque sur un seul lecteur et lève une exception sur certains pilotes).
+     */
+    private CardTerminal waitForCard(List<CardTerminal> candidates) throws EidException {
+        CardTerminal found = firstWithCard(candidates);
+        if (found != null) {
+            return found;
         }
-        hub.broadcast("WAITING_FOR_CARD", EventHub.payload("reader", terminal.getName(),
+        List<String> names = new ArrayList<>();
+        for (CardTerminal t : candidates) {
+            names.add(t.getName());
+        }
+        hub.broadcast("WAITING_FOR_CARD", EventHub.payload("readers", names,
                 "timeoutSeconds", config.cardWaitSeconds()));
         long deadline = System.currentTimeMillis() + config.cardWaitSeconds() * 1000L;
         while (System.currentTimeMillis() < deadline) {
             try {
-                if (terminal.waitForCardPresent(500)) {
-                    return;
-                }
-            } catch (CardException e) {
-                throw new EidException(ErrorCode.NO_READER, "Le lecteur ne répond plus.", e);
+                Thread.sleep(300);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new EidException(ErrorCode.NO_CARD, "Attente de la carte interrompue.", e);
+            }
+            found = firstWithCard(candidates);
+            if (found != null) {
+                return found;
             }
         }
         throw new EidException(ErrorCode.NO_CARD,
                 "Aucune carte détectée. Posez la carte à plat sur le lecteur et réessayez.");
+    }
+
+    private static CardTerminal firstWithCard(List<CardTerminal> candidates) {
+        for (CardTerminal t : candidates) {
+            try {
+                if (t.isCardPresent()) {
+                    return t;
+                }
+            } catch (CardException | RuntimeException e) {
+                // Lecteur défaillant ou débranché : on l'ignore et on continue avec les autres
+                LOG.fine("Lecteur ignoré (" + t.getName() + ") : " + e);
+            }
+        }
+        return null;
     }
 }
