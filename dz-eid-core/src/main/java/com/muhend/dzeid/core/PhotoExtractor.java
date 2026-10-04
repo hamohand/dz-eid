@@ -40,6 +40,38 @@ public final class PhotoExtractor {
         return scanForImage(dg2);
     }
 
+    /**
+     * Image de la signature manuscrite depuis le DG7 (« displayed signature ») :
+     * {@code 67 { 02 nombre, 5F43 image, … }}. Renvoie la première image.
+     */
+    public static Photo extractSignature(byte[] dg7) {
+        if (dg7 == null || dg7.length == 0) {
+            return null;
+        }
+        try {
+            com.muhend.dzeid.core.tlv.Tlv root = com.muhend.dzeid.core.tlv.TlvParser.parse(dg7);
+            com.muhend.dzeid.core.tlv.Tlv image = root.find(0x5F43);
+            if (image != null && image.value().length > 0) {
+                byte[] bytes = image.value();
+                return new Photo(sniffMime(bytes), Base64.getEncoder().encodeToString(bytes), null);
+            }
+        } catch (RuntimeException ignored) {
+            // repli : recherche directe de la signature de l'image
+        }
+        return scanForImage(dg7);
+    }
+
+    /** Type MIME d'après les premiers octets (JPEG, JPEG2000, WSQ). */
+    static String sniffMime(byte[] b) {
+        if (b.length >= 2 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8) {
+            return "image/jpeg";
+        }
+        if (b.length >= 2 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xA0) {
+            return "image/x-wsq";
+        }
+        return "image/jp2";
+    }
+
     /** Repli robuste : localise une image JPEG ou JPEG2000 par sa signature binaire. */
     static Photo scanForImage(byte[] data) {
         for (int i = 0; i + 12 <= data.length; i++) {

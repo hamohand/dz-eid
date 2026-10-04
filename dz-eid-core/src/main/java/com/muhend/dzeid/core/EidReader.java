@@ -2,15 +2,23 @@ package com.muhend.dzeid.core;
 
 import com.muhend.dzeid.core.ProgressListener.Step;
 import com.muhend.dzeid.core.model.IdentityRecord;
+import com.muhend.dzeid.core.model.IdentityRecord.ActiveAuthentication;
 import com.muhend.dzeid.core.model.IdentityRecord.PassiveAuthentication;
+import com.muhend.dzeid.core.model.IdentityRecord.Status;
 import com.muhend.dzeid.core.parse.ComParser;
 import com.muhend.dzeid.core.util.IoUtil;
+import com.muhend.dzeid.core.verify.ActiveAuthenticator;
 import com.muhend.dzeid.core.verify.PassiveAuthenticator;
 import net.sf.scuba.smartcards.CardService;
 import net.sf.scuba.smartcards.CardServiceException;
 import org.jmrtd.PassportService;
+import org.jmrtd.lds.icao.DG15File;
+import org.jmrtd.protocol.AAResult;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.security.PublicKey;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,6 +43,7 @@ public final class EidReader {
 
     private static final short EF_SOD = 0x011D;
     private static final short EF_COM = 0x011E;
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     public IdentityRecord read(CardService cardService, AccessKey key, ReadOptions options,
                                ProgressListener listener) throws EidException {
@@ -70,6 +79,13 @@ public final class EidReader {
             if (opts.readPhoto() && (present.isEmpty() || present.contains(2))) {
                 toRead.add(2);
             }
+            // DG7 et DG15 sont facultatifs : lus seulement si EF.COM les annonce
+            if (opts.readSignatureImage() && present.contains(7)) {
+                toRead.add(7);
+            }
+            if (opts.activeAuthentication() && present.contains(15)) {
+                toRead.add(15);
+            }
 
             Map<Integer, byte[]> dataGroups = new LinkedHashMap<>();
             int done = 0;
@@ -83,22 +99,24 @@ public final class EidReader {
                 done++;
             }
 
+            ActiveAuthentication aa = activeAuthentication(service, dataGroups.get(15), opts, progress);
+
             byte[] sod = null;
             if (opts.verifyPassive()) {
-                progress.onProgress(Step.READING, 82, "Lecture de la signature électronique…");
+                progress.onProgress(Step.READING, 85, "Lecture de la signature électronique…");
                 sod = readFile(service, EF_SOD, false);
             }
 
             PassiveAuthentication pa;
             if (opts.verifyPassive()) {
-                progress.onProgress(Step.VERIFYING, 90, "Vérification de l'authenticité…");
+                progress.onProgress(Step.VERIFYING, 92, "Vérification de l'authenticité…");
                 pa = PassiveAuthenticator.verify(sod, dataGroups, opts.cscaStore());
             } else {
                 pa = PassiveAuthentication.notChecked("Vérification désactivée.");
             }
 
             CardData data = new CardData(dataGroups, sod, present, accessMethod);
-            IdentityRecord record = IdentityAssembler.assemble(data, pa, opts.includeRaw());
+            IdentityRecord record = IdentityAssembler.assemble(data, pa, aa, opts.includeRaw());
             progress.onProgress(Step.DONE, 100, "Lecture terminée.");
             return record;
         } finally {
@@ -148,12 +166,55 @@ public final class EidReader {
         }
     }
 
+    /**
+     * Active Authentication : envoie un défi aléatoire de 8 octets (INTERNAL AUTHENTICATE, sous secure
+     * messaging) et vérifie la réponse avec la clé publique du DG15.
+     */
+    private static ActiveAuthentication activeAuthentication(PassportService service, byte[] dg15,
+                                                             ReadOptions opts, ProgressListener progress)
+            throws EidException {
+        if (!opts.activeAuthentication()) {
+            return ActiveAuthentication.notChecked("Contrôle anti-clonage désactivé.");
+        }
+        if (dg15 == null) {
+            return ActiveAuthentication.notChecked(
+                    "Cette carte ne propose pas le contrôle anti-clonage (pas de DG15).");
+        }
+        PublicKey key;
+        try {
+            key = new DG15File(new ByteArrayInputStream(dg15)).getPublicKey();
+        } catch (Exception e) {
+            LOG.info("Active Authentication : DG15 illisible (" + e + ")");
+            return new ActiveAuthentication(Status.INVALID, null, "Clé anti-clonage (DG15) illisible.");
+        }
+        progress.onProgress(Step.VERIFYING, 82, "Contrôle anti-clonage de la puce…");
+        byte[] challenge = new byte[8];
+        RANDOM.nextBytes(challenge);
+        try {
+            boolean rsa = "RSA".equalsIgnoreCase(key.getAlgorithm());
+            AAResult result = service.doAA(key, rsa ? "SHA-1" : "SHA-256",
+                    rsa ? "SHA1WithRSA/ISO9796-2" : "SHA256withECDSA", challenge);
+            ActiveAuthentication aa = ActiveAuthenticator.verify(key, challenge, result.getResponse());
+            LOG.info("Active Authentication : " + aa.result() + " (" + aa.algorithm() + ")");
+            return aa;
+        } catch (Exception e) {
+            if (EidException.isCardLost(e)) {
+                throw EidException.classify(e, ErrorCode.CARD_LOST, null);
+            }
+            LOG.info("Active Authentication refusée par la puce : " + e);
+            return new ActiveAuthentication(Status.INVALID, key.getAlgorithm(),
+                    "La puce n'a pas répondu au défi anti-clonage alors qu'elle annonce ce contrôle (clone possible).");
+        }
+    }
+
     private static String label(int dg) {
         switch (dg) {
             case 1: return "Lecture des données MRZ…";
             case 2: return "Lecture de la photo…";
+            case 7: return "Lecture de la signature manuscrite…";
             case 11: return "Lecture de l'identité (noms arabes, NIN)…";
             case 12: return "Lecture des informations du document…";
+            case 15: return "Lecture de la clé anti-clonage…";
             default: return "Lecture du groupe de données " + dg + "…";
         }
     }

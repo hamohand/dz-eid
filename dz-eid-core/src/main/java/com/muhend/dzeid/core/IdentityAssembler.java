@@ -1,6 +1,7 @@
 package com.muhend.dzeid.core;
 
 import com.muhend.dzeid.core.model.IdentityRecord;
+import com.muhend.dzeid.core.model.IdentityRecord.ActiveAuthentication;
 import com.muhend.dzeid.core.model.IdentityRecord.DocumentInfo;
 import com.muhend.dzeid.core.model.IdentityRecord.HolderInfo;
 import com.muhend.dzeid.core.model.IdentityRecord.MrzSummary;
@@ -39,6 +40,16 @@ public final class IdentityAssembler {
     }
 
     public static IdentityRecord assemble(CardData data, PassiveAuthentication passiveAuth, boolean includeRaw) {
+        return assemble(data, passiveAuth, ActiveAuthentication.notChecked(
+                "Contrôle anti-clonage possible uniquement pendant une lecture de la carte."), includeRaw);
+    }
+
+    /**
+     * @param activeAuth résultat de l'Active Authentication réalisée pendant la lecture
+     *                   (ne peut pas être rejouée hors ligne : le défi est aléatoire)
+     */
+    public static IdentityRecord assemble(CardData data, PassiveAuthentication passiveAuth,
+                                          ActiveAuthentication activeAuth, boolean includeRaw) {
         List<String> warnings = new ArrayList<>();
 
         MrzData mrz = null;
@@ -82,12 +93,28 @@ public final class IdentityAssembler {
             }
         }
 
+        Photo signatureImage = null;
+        if (data.dataGroup(7) != null) {
+            signatureImage = PhotoExtractor.extractSignature(data.dataGroup(7));
+            if (signatureImage == null) {
+                warnings.add("Signature manuscrite (DG7) présente mais non décodable.");
+            }
+        }
+
         DocumentInfo document = buildDocument(mrz, dg12, warnings);
         HolderInfo holder = buildHolder(mrz, dg11, warnings);
         MrzSummary mrzSummary = mrz == null ? null : new MrzSummary(mrz.format(), mrz.lines(), mrz.checkDigitsValid());
 
+        ActiveAuthentication aa = activeAuth;
+        if (aa != null && aa.result() == IdentityRecord.Status.VALID
+                && (passiveAuth == null || passiveAuth.dataIntegrity() != IdentityRecord.Status.VALID)) {
+            // Sans empreinte du DG15 validée, un clone pourrait présenter sa propre clé : non probant
+            aa = new ActiveAuthentication(IdentityRecord.Status.NOT_CHECKED, aa.algorithm(),
+                    "Anti-clonage non probant : la clé de la puce (DG15) n'est pas garantie par la signature de l'État.");
+        }
+
         Verification verification = new Verification(data.accessMethod(), data.dataGroupsPresent(),
-                new ArrayList<>(data.dataGroups().keySet()), passiveAuth);
+                new ArrayList<>(data.dataGroups().keySet()), passiveAuth, aa);
 
         Map<String, String> raw = null;
         if (includeRaw) {
@@ -101,7 +128,7 @@ public final class IdentityAssembler {
         }
 
         return new IdentityRecord(IdentityRecord.SCHEMA_VERSION, Instant.now().toString(), document, holder,
-                mrzSummary, photo, verification, Collections.unmodifiableList(warnings), raw);
+                mrzSummary, photo, signatureImage, verification, Collections.unmodifiableList(warnings), raw);
     }
 
     private static DocumentInfo buildDocument(MrzData mrz, Dg12Data dg12, List<String> warnings) {

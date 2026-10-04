@@ -16,15 +16,24 @@ public record IdentityRecord(
         HolderInfo holder,
         MrzSummary mrz,
         Photo photo,
+        Photo signatureImage,
         Verification verification,
         List<String> warnings,
         Map<String, String> raw) {
 
-    public static final String SCHEMA_VERSION = "1.0";
+    /** 1.1 : ajout de {@code signatureImage} et de {@code verification.activeAuthentication}. */
+    public static final String SCHEMA_VERSION = "1.1";
 
     /** Copie avec une autre photo (par ex. après conversion JPEG2000 → JPEG). */
     public IdentityRecord withPhoto(Photo newPhoto) {
-        return new IdentityRecord(schemaVersion, readAt, document, holder, mrz, newPhoto, verification, warnings, raw);
+        return new IdentityRecord(schemaVersion, readAt, document, holder, mrz, newPhoto, signatureImage,
+                verification, warnings, raw);
+    }
+
+    /** Copie avec une autre image de signature (par ex. après conversion JPEG2000 → JPEG). */
+    public IdentityRecord withSignatureImage(Photo newSignature) {
+        return new IdentityRecord(schemaVersion, readAt, document, holder, mrz, photo, newSignature,
+                verification, warnings, raw);
     }
 
     /** Informations sur le document. */
@@ -63,9 +72,9 @@ public record IdentityRecord(
     }
 
     /**
-     * Photo du titulaire.
+     * Image enregistrée sur la puce : photo du titulaire (DG2) ou signature manuscrite (DG7).
      *
-     * @param originalMimeType renseigné si la photo a été convertie (format d'origine sur la puce)
+     * @param originalMimeType renseigné si l'image a été convertie (format d'origine sur la puce)
      */
     public record Photo(String mimeType, String base64, String originalMimeType) {
     }
@@ -75,7 +84,23 @@ public record IdentityRecord(
             String accessMethod,
             List<Integer> dataGroupsPresent,
             List<Integer> dataGroupsRead,
-            PassiveAuthentication passiveAuthentication) {
+            PassiveAuthentication passiveAuthentication,
+            ActiveAuthentication activeAuthentication) {
+    }
+
+    /**
+     * Active Authentication (ICAO 9303 partie 11) : la puce signe un défi aléatoire avec une clé privée
+     * non extractible, ce qui prouve qu'elle est l'originale et non une copie (anti-clonage).
+     *
+     * @param result    VALID (puce authentique), INVALID (réponse incorrecte ou refusée), NOT_CHECKED
+     * @param algorithm algorithme constaté, par ex. {@code RSA-1024 ISO 9796-2 / SHA-1}
+     * @param summary   phrase de synthèse en français
+     */
+    public record ActiveAuthentication(Status result, String algorithm, String summary) {
+
+        public static ActiveAuthentication notChecked(String reason) {
+            return new ActiveAuthentication(Status.NOT_CHECKED, null, reason);
+        }
     }
 
     /** Statut d'un contrôle. */

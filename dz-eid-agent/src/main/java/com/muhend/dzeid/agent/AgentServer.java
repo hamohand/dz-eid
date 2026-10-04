@@ -100,8 +100,9 @@ final class AgentServer {
                     ? AccessKey.fromMrz(req.get("mrz").asText())
                     : AccessKey.of(text(req, "documentNumber"), text(req, "dateOfBirth"), text(req, "dateOfExpiry"));
             boolean readPhoto = req.path("readPhoto").asBoolean(true);
+            boolean readSignature = req.path("readSignature").asBoolean(true);
             boolean includeRaw = req.path("includeRaw").asBoolean(false);
-            IdentityRecord record = readService.read(key, readPhoto, includeRaw);
+            IdentityRecord record = readService.read(key, readPhoto, readSignature, includeRaw);
             json(ctx, 200, record);
         });
 

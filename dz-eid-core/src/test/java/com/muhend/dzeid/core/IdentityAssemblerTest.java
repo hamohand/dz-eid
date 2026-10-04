@@ -28,7 +28,7 @@ class IdentityAssemblerTest {
     void assemblesCompleteAlgerianIdentity() {
         IdentityRecord r = EidReader.decode(fakeCard(), ReadOptions.defaults());
 
-        assertEquals("1.0", r.schemaVersion());
+        assertEquals("1.1", r.schemaVersion());
         assertEquals("ID_CARD", r.document().type());
         assertEquals(DzCardFixtures.DOC_NUMBER, r.document().number());
         assertEquals("DZA", r.document().issuingState());

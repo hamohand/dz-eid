@@ -42,7 +42,8 @@ final class ReadService {
         return lock.isLocked();
     }
 
-    IdentityRecord read(AccessKey key, boolean readPhoto, boolean includeRaw) throws EidException {
+    IdentityRecord read(AccessKey key, boolean readPhoto, boolean readSignature, boolean includeRaw)
+            throws EidException {
         if (!lock.tryLock()) {
             throw new EidException(ErrorCode.BUSY, "Une lecture est déjà en cours.");
         }
@@ -52,7 +53,7 @@ final class ReadService {
             LOG.info("Carte détectée sur le lecteur : " + terminal.getName());
 
             TerminalCardService card = new TerminalCardService(terminal);
-            ReadOptions options = new ReadOptions(readPhoto, includeRaw, true, cscaStore);
+            ReadOptions options = new ReadOptions(readPhoto, includeRaw, true, cscaStore, readSignature, true);
             try {
                 IdentityRecord record = new EidReader().read(card, key, options, (step, percent, message) ->
                         hub.broadcast("PROGRESS", EventHub.payload("step", step.name(), "percent", percent,
@@ -60,11 +61,16 @@ final class ReadService {
                 if (config.convertPhotoToJpeg() && record.photo() != null) {
                     record = record.withPhoto(PhotoConverter.toJpeg(record.photo()));
                 }
+                if (config.convertPhotoToJpeg() && record.signatureImage() != null) {
+                    record = record.withSignatureImage(PhotoConverter.toJpeg(record.signatureImage()));
+                }
                 PassiveAuthentication pa = record.verification().passiveAuthentication();
                 // Journal sans aucune donnée personnelle
-                LOG.info(String.format("Lecture réussie en %d ms (%s, DG %s, PA intégrité=%s signature=%s chaîne=%s)",
+                LOG.info(String.format(
+                        "Lecture réussie en %d ms (%s, DG %s, PA intégrité=%s signature=%s chaîne=%s, AA=%s)",
                         System.currentTimeMillis() - start, record.verification().accessMethod(),
-                        record.verification().dataGroupsRead(), pa.dataIntegrity(), pa.signature(), pa.certificateChain()));
+                        record.verification().dataGroupsRead(), pa.dataIntegrity(), pa.signature(),
+                        pa.certificateChain(), record.verification().activeAuthentication().result()));
                 hub.broadcast("READ_COMPLETED", EventHub.payload("durationMs", System.currentTimeMillis() - start));
                 return record;
             } finally {

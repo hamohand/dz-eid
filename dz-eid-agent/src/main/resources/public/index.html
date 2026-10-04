@@ -101,6 +101,7 @@
     </div>
     <div class="checks">
       <label><input type="checkbox" id="photo" checked> Lire la photo</label>
+      <label><input type="checkbox" id="sig" checked> Lire la signature</label>
       <label><input type="checkbox" id="raw"> Données brutes</label>
     </div>
 
@@ -127,6 +128,7 @@
           <span class="nin" id="nin"></span>
           <div class="badges" id="badges"></div>
           <div class="summary" id="paSummary"></div>
+          <div class="summary" id="aaSummary"></div>
         </div>
       </div>
       <div class="grid" id="fields"></div>
@@ -219,7 +221,7 @@
 
   $('readBtn').addEventListener('click', async () => {
     $('error').classList.remove('on');
-    const body = { readPhoto: $('photo').checked, includeRaw: $('raw').checked };
+    const body = { readPhoto: $('photo').checked, readSignature: $('sig').checked, includeRaw: $('raw').checked };
     const mrz = $('mrz').value.trim();
     if (mrz.replace(/\s/g, '').length >= 72) body.mrz = mrz;
     else Object.assign(body, { documentNumber: $('doc').value, dateOfBirth: $('dob').value, dateOfExpiry: $('doe').value });
@@ -257,11 +259,20 @@
     $('nameArabic').textContent = [h.lastNameArabic, h.firstNameArabic].filter(Boolean).join(' ');
     $('nin').textContent = h.nin ? 'NIN ' + h.nin : 'NIN non disponible';
 
+    const aa = v.activeAuthentication || {};
     const labels = { dataIntegrity: 'Intégrité', signature: 'Signature', certificateChain: 'Chaîne CSCA' };
     $('badges').innerHTML = '<span class="badge VALID">Accès ' + esc(v.accessMethod) + '</span>' +
-      Object.keys(labels).map(k => '<span class="badge ' + esc(pa[k]) + '">' + labels[k] + ' : ' + esc(frStatus(pa[k])) + '</span>').join('');
+      Object.keys(labels).map(k => '<span class="badge ' + esc(pa[k]) + '">' + labels[k] + ' : ' + esc(frStatus(pa[k])) + '</span>').join('') +
+      (aa.result ? '<span class="badge ' + esc(aa.result) + '" title="' + esc(aa.algorithm || '') + '">Anti-clonage : ' + esc(frStatus(aa.result)) + '</span>' : '');
     $('paSummary').textContent = pa.summary || '';
     $('paSummary').className = 'summary' + ((pa.summary || '').startsWith('ALERTE') ? ' bad' : '');
+    $('aaSummary').textContent = aa.summary || '';
+    $('aaSummary').className = 'summary' + (aa.result === 'INVALID' ? ' bad' : '');
+
+    const sig = r.signatureImage;
+    const sigHtml = !sig ? '' : sig.mimeType === 'image/jpeg'
+      ? '<img alt="Signature du titulaire" style="max-width:260px;max-height:90px;background:#fff;border-radius:6px;padding:4px" src="data:image/jpeg;base64,' + sig.base64 + '">'
+      : 'Image au format ' + esc(sig.mimeType);
 
     const bi = (lat, ar) => esc(lat || '') + (ar ? '<span class="ar">' + esc(ar) + '</span>' : '');
     const rows = [
@@ -276,6 +287,7 @@
       ['Expire le', esc(fmtDate(d.dateOfExpiry)) + (isExpired(d.dateOfExpiry) ? ' <b style="color:#dc2626">(expiré)</b>' : '')],
       ['Autorité', bi(d.issuingAuthorityLatin, d.issuingAuthorityArabic)],
     ];
+    if (sigHtml) rows.push(['Signature manuscrite', sigHtml]);
     $('fields').innerHTML = rows.map(([k, val]) => '<div class="field"><div class="k">' + k + '</div><div class="v">' + (val || '—') + '</div></div>').join('');
 
     const w = (r.warnings || []).concat(pa.details || []);
@@ -283,7 +295,9 @@
     $('warnings').innerHTML = w.map(x => '⚠ ' + esc(x)).join('<br>');
 
     const shown = JSON.parse(JSON.stringify(r));
-    if (shown.photo) shown.photo.base64 = shown.photo.base64.substring(0, 60) + '… (' + r.photo.base64.length + ' caractères)';
+    for (const k of ['photo', 'signatureImage']) {
+      if (shown[k]) shown[k].base64 = shown[k].base64.substring(0, 60) + '… (' + r[k].base64.length + ' caractères)';
+    }
     lastJson = JSON.stringify(r, null, 2);
     $('json').textContent = JSON.stringify(shown, null, 2);
   }

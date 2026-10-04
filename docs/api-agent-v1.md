@@ -39,13 +39,15 @@ Corps de la requête : soit les 3 champs de la clé d'accès, soit la MRZ compl�
 
 ```json
 { "documentNumber": "123456789", "dateOfBirth": "850312", "dateOfExpiry": "310520",
-  "readPhoto": true, "includeRaw": false }
+  "readPhoto": true, "readSignature": true, "includeRaw": false }
 ```
 ```json
 { "mrz": "IDDZA1234567890<<<…\n8503127F3105208DZA<<<…\nBENALI<<AMINA<<<…" }
 ```
 
 - Les dates sont acceptées en `AAMMJJ` ou `AAAA-MM-JJ`.
+- `readPhoto` (défaut `true`) : photo DG2. `readSignature` (défaut `true`) : signature manuscrite DG7, si la carte en a une.
+- Le contrôle anti-clonage (Active Authentication) est toujours effectué quand la carte possède un DG15 (+ ~0,3 s).
 - Si aucune carte n'est posée, l'agent attend `cardWaitSeconds` secondes.
 - Réponse `200` : un [`IdentityRecord`](contrat-identity-record-v1.md).
 
