@@ -1,11 +1,29 @@
 plugins {
     `java-library`
+    `maven-publish`
 }
 
 description = "dz-eid core : lecture et vérification des documents d'identité électroniques (ICAO 9303), profil algérien."
 
 java {
     withSourcesJar()
+}
+
+// Dépôt Maven local consommé par le plugin Flutter (flutter/dz_eid/android) :
+//   .\gradlew.bat :dz-eid-core:publish
+publishing {
+    publications {
+        create<MavenPublication>("core") {
+            artifactId = "dz-eid-core"
+            from(components["java"])
+        }
+    }
+    repositories {
+        maven {
+            name = "local"
+            url = uri(rootProject.layout.buildDirectory.dir("maven-repo"))
+        }
+    }
 }
 
 // Bytecode Java 17 : compatible avec Android (AGP 8+) pour la future réutilisation mobile.
