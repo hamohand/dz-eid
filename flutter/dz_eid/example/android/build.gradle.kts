@@ -2,6 +2,9 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // Cœur dz-eid publié localement (.\gradlew.bat :dz-eid-core:publish à la racine de dz-eid).
+        // Une application cliente pointera ici vers le dépôt Maven privé dz-eid.
+        maven { url = uri(rootDir.resolve("../../../../build/maven-repo")) }
     }
 }
 

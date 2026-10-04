@@ -1,3 +1,20 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-  package="com.muhend.dzeid.dz_eid">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Lecture de la puce sans contact. Aucune permission INTERNET : tout reste sur le téléphone. -->
+    <uses-permission android:name="android.permission.NFC" />
+    <!-- Lecture de la MRZ au dos de la carte (images traitées en mémoire, jamais enregistrées). -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Facultatifs : l'application reste installable sans NFC ni caméra (saisie manuelle, message clair). -->
+    <uses-feature android:name="android.hardware.nfc" android:required="false" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
+    <application>
+        <activity
+            android:name="com.muhend.dzeid.android.MrzScannerActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
+    </application>
 </manifest>

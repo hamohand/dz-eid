@@ -10,6 +10,7 @@ Une bibliothèque Java unique (`dz-eid-core`) qui se branche sur un lecteur USB 
 |---|---|
 | [`dz-eid-core`](dz-eid-core) | Bibliothèque portable (Java 17, compatible Android) : PACE/BAC, lecture des DG, décodage algérien (ISO-8859-6), Passive Authentication, contrat `IdentityRecord` |
 | [`dz-eid-agent`](dz-eid-agent) | Agent Windows : pont sécurisé entre un lecteur PC/SC et les applications web (REST + WebSocket sur `127.0.0.1:8989`) et page de démo |
+| [`flutter/dz_eid`](flutter/dz_eid) | Plugin Flutter (Android 8+) : lecture NFC par le téléphone, scan de la MRZ par la caméra, application de démo ([guide d'intégration](docs/integration-flutter.md)) |
 
 ## Démarrage rapide
 
@@ -75,3 +76,6 @@ Décodage hors ligne de données déjà lues (diagnostic, données transmises pa
 | BouncyCastle | MIT | — |
 | Jackson, Javalin | Apache 2.0 | — |
 | jai-imageio-jpeg2000 | BSD + licence JJ2000 | Conversion de la photo : à faire vérifier par un juriste |
+| JP2ForAndroid (Thales, OpenJPEG) | BSD-2 | Conversion JPEG2000 sur Android |
+| ML Kit Text Recognition (Google) | Conditions ML Kit | Modèle embarqué, gratuit, hors ligne |
+| CameraX, AndroidX | Apache 2.0 | — |

@@ -1,15 +1,12 @@
 # dz_eid
 
-Lecture des cartes d'identite electroniques algeriennes (CNIe) par NFC - dz-eid
+Plugin Flutter de lecture des cartes d'identité électroniques algériennes (CNIe) par NFC, avec scan de la MRZ par la caméra. Android 8.0 (API 26) minimum.
 
-## Getting Started
+Guide complet : [docs/integration-flutter.md](../../docs/integration-flutter.md).
 
-This project is a starting point for a Flutter
-[plug-in package](https://flutter.dev/to/develop-plugins),
-a specialized package that includes platform-specific implementation code for
-Android and/or iOS.
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
-
+```dart
+final scan = await DzEid.scanMrz();
+if (scan == null) return;
+final id = await DzEid.readCard(accessKey: scan.toAccessKey(), onProgress: (p) => print(p.message));
+print(id.holder.lastNameArabic);
+```

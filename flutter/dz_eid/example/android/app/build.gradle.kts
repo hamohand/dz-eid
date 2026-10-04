@@ -19,7 +19,8 @@ android {
         applicationId = "com.muhend.dzeid.dz_eid_example"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // dz_eid exige Android 8.0 (API 26) minimum
+        minSdk = 26
         targetSdk = flutter.targetSdkVersion
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
         // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
@@ -27,6 +28,15 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+    }
+
+    // Les jars BouncyCastle (bcprov, bcpkix, bcutil) contiennent chacun ces fichiers :
+    // manifeste OSGi exclu, une seule copie de la licence conservée dans l'APK.
+    packaging {
+        resources {
+            excludes += setOf("META-INF/versions/9/OSGI-INF/MANIFEST.MF")
+            pickFirsts += setOf("META-INF/LICENSE.md", "META-INF/LICENSE.txt", "META-INF/NOTICE.md", "META-INF/NOTICE.txt")
+        }
     }
 
     buildTypes {

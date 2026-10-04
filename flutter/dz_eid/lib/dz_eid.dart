@@ -1,8 +1,7 @@
+/// Lecture des cartes d'identité électroniques algériennes (CNIe) par NFC : dz-eid.
+///
+/// Point d'entrée : [DzEid].
+library;
 
-import 'dz_eid_platform_interface.dart';
-
-class DzEid {
-  Future<String?> getPlatformVersion() {
-    return DzEidPlatform.instance.getPlatformVersion();
-  }
-}
+export 'src/dz_eid_api.dart';
+export 'src/identity_record.dart';
