@@ -107,19 +107,36 @@ final class PcscReaders {
     /**
      * Contournement d'un défaut connu de Java : quand le service Windows « Carte à puce » s'arrête
      * (dernier lecteur débranché), le contexte PC/SC mis en cache devient invalide jusqu'au redémarrage
-     * de la JVM. On remet ce contexte à zéro pour forcer sa recréation.
+     * de la JVM. On remet ce contexte à zéro pour forcer sa recréation, et on vide le cache statique
+     * des lecteurs : chaque objet lecteur mémorise le contexte de sa création, et répondrait sinon
+     * « pas de carte » indéfiniment (constaté sur le uTrust 3700 F après un rebranchement).
      */
-    private static void resetPcscContext() {
+    static synchronized void resetPcscContext() {
         try {
             Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
             Field theUnsafe = unsafeClass.getDeclaredField("theUnsafe");
             theUnsafe.setAccessible(true);
             Object unsafe = theUnsafe.get(null);
-            Field contextId = Class.forName("sun.security.smartcardio.PCSCTerminals").getDeclaredField("contextId");
+            Class<?> pcscTerminals = Class.forName("sun.security.smartcardio.PCSCTerminals");
             Method base = unsafeClass.getMethod("staticFieldBase", Field.class);
             Method offset = unsafeClass.getMethod("staticFieldOffset", Field.class);
+
+            Field contextId = pcscTerminals.getDeclaredField("contextId");
             Method putLong = unsafeClass.getMethod("putLong", Object.class, long.class, long.class);
             putLong.invoke(unsafe, base.invoke(unsafe, contextId), (long) offset.invoke(unsafe, contextId), 0L);
+
+            try {
+                Field cache = pcscTerminals.getDeclaredField("terminals");
+                Method getObject = unsafeClass.getMethod("getObject", Object.class, long.class);
+                Object map = getObject.invoke(unsafe, base.invoke(unsafe, cache), (long) offset.invoke(unsafe, cache));
+                if (map instanceof java.util.Map) {
+                    synchronized (pcscTerminals) {
+                        ((java.util.Map<?, ?>) map).clear();
+                    }
+                }
+            } catch (NoSuchFieldException ignored) {
+                // JDK sans cache de lecteurs : rien à vider
+            }
             LOG.info("Contexte PC/SC réinitialisé.");
         } catch (Throwable t) {
             LOG.log(Level.WARNING, "Réinitialisation du contexte PC/SC impossible", t);

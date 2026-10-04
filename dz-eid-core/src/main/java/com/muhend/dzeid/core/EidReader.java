@@ -57,6 +57,8 @@ public final class EidReader {
 
             progress.onProgress(Step.READING, 25, "Lecture du sommaire…");
             List<Integer> present = readPresentDataGroups(service);
+            // Numéros de DG uniquement : indique notamment si DG14/DG15 (anti-clonage) existent
+            LOG.info("EF.COM annonce les DG " + present);
 
             List<Integer> toRead = new ArrayList<>();
             toRead.add(1);

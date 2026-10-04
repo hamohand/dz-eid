@@ -102,12 +102,23 @@ final class ReadService {
         hub.broadcast("WAITING_FOR_CARD", EventHub.payload("readers", names,
                 "timeoutSeconds", config.cardWaitSeconds()));
         long deadline = System.currentTimeMillis() + config.cardWaitSeconds() * 1000L;
+        long nextRefresh = System.currentTimeMillis() + 5000L;
         while (System.currentTimeMillis() < deadline) {
             try {
                 Thread.sleep(300);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new EidException(ErrorCode.NO_CARD, "Attente de la carte interrompue.", e);
+            }
+            if (System.currentTimeMillis() >= nextRefresh) {
+                // Filet de sécurité : contexte PC/SC périmé (lecteur rebranché, service redémarré)
+                PcscReaders.resetPcscContext();
+                try {
+                    candidates = readers.candidates(config.preferredReader());
+                } catch (EidException e) {
+                    // lecteur momentanément absent : on continue d'attendre
+                }
+                nextRefresh = System.currentTimeMillis() + 5000L;
             }
             found = firstWithCard(candidates);
             if (found != null) {
