@@ -14,5 +14,12 @@
 # Décodeur JPEG2000 : méthodes natives (JNI).
 -keep class com.gemalto.jp2.** { *; }
 
+# ML Kit (reconnaissance de texte embarquée) : composants chargés par réflexion. Sans ces règles,
+# R8 en mode complet provoque un NullPointerException dans mlkit_vision_common dès la première image.
+-keep class com.google.mlkit.** { *; }
+-keep class com.google.android.gms.internal.mlkit_** { *; }
+-dontwarn com.google.mlkit.**
+-dontwarn com.google.android.gms.internal.mlkit_**
+
 # Jackson est volontairement exclu sur Android (IdentityRecordJson n'y est pas utilisé).
 -dontwarn com.fasterxml.jackson.**

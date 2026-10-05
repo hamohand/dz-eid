@@ -10,6 +10,8 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
 import com.muhend.dzeid.core.AccessKey
 import com.muhend.dzeid.core.EidException
 import com.muhend.dzeid.core.EidReader
@@ -62,6 +64,7 @@ class NfcCardReader(private val context: Context) {
         val timeout = Runnable {
             finish(this) { listener.onError(ErrorCode.NO_CARD.name, NO_CARD_MESSAGE) }
         }
+        val reapply: Runnable = Runnable { reapplyReaderMode(this) }
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -130,22 +133,35 @@ class NfcCardReader(private val context: Context) {
                 "Le NFC est désactivé. Activez-le dans les paramètres du téléphone.")
             return
         }
-        val current = activity
-        if (current == null) {
+        if (activity == null) {
             listener.onError(AndroidErrorCodes.NO_ACTIVITY, "L'application doit être au premier plan pour lire la carte.")
             return
         }
         CryptoSetup.ensureBouncyCastle()
         val s = Session(key, options, timeoutMs, listener)
         session = s
-        if (!enableReaderMode(current)) {
-            session = null
-            listener.onError(AndroidErrorCodes.NO_ACTIVITY, "L'application doit être au premier plan pour lire la carte.")
-            return
-        }
+        // Si l'activité n'est pas encore au premier plan (retour de l'écran caméra), l'activation est faite
+        // par onActivityResumed ; la réactivation périodique couvre les cas où le système l'ignore.
+        reapplyReaderMode(s)
         main.postDelayed(s.timeout, timeoutMs)
         listener.onWaitingForCard(WAITING_MESSAGE)
     }
+
+    /**
+     * (Ré)active le mode lecteur toutes les [REAPPLY_INTERVAL_MS] tant que la session attend une carte.
+     * Sans risque : aucune carte n'est connectée pendant l'attente. Contourne les activations ignorées
+     * silencieusement (observé sur Samsung juste après le retour d'une autre activité).
+     */
+    private fun reapplyReaderMode(s: Session) {
+        main.removeCallbacks(s.reapply)
+        if (session !== s || s.state != State.WAITING) return
+        activity?.let { if (isResumed(it)) enableReaderMode(it) }
+        main.postDelayed(s.reapply, REAPPLY_INTERVAL_MS)
+    }
+
+    private fun isResumed(activity: Activity): Boolean =
+        (activity as? LifecycleOwner)?.lifecycle?.currentState?.isAtLeast(Lifecycle.State.RESUMED)
+            ?: !activity.isFinishing
 
     private fun enableReaderMode(activity: Activity): Boolean {
         val adapter = NfcAdapter.getDefaultAdapter(context) ?: return false
@@ -198,6 +214,8 @@ class NfcCardReader(private val context: Context) {
             iso.connect()
             iso.timeout = ISO_DEP_TIMEOUT_MS
             val record = EidReader().read(IsoDepCardService(iso), s.key, s.options) { step, percent, message ->
+                // Diagnostic de performance : libellés d'étapes génériques, aucune donnée personnelle
+                Log.d(TAG, "+${SystemClock.elapsedRealtime() - start} ms $step $percent % $message")
                 main.post { if (s.state == State.READING) s.listener.onProgress(step.name, percent, message) }
             }
             val converted = ImageConverter.convertImages(record)
@@ -225,6 +243,7 @@ class NfcCardReader(private val context: Context) {
             s.isoDep = null
             synchronized(s) { s.state = State.WAITING }
             main.postDelayed(s.timeout, s.timeoutMs)
+            main.postDelayed(s.reapply, REAPPLY_INTERVAL_MS)
             s.listener.onWaitingForCard(
                 "Connexion perdue. Reposez la carte au dos du téléphone et ne la bougez plus pendant la lecture.")
             return
@@ -237,6 +256,7 @@ class NfcCardReader(private val context: Context) {
         if (s.state == State.FINISHED) return
         s.state = State.FINISHED
         main.removeCallbacks(s.timeout)
+        main.removeCallbacks(s.reapply)
         if (session === s) session = null
         disableReaderMode()
         notify()
@@ -254,10 +274,13 @@ class NfcCardReader(private val context: Context) {
         private const val TAG = "DzEid"
         private const val ISO_DEP_TIMEOUT_MS = 10_000
         private const val MAX_RETRIES = 3
+        private const val REAPPLY_INTERVAL_MS = 2_000L
         const val DEFAULT_TIMEOUT_MS = 60_000L
         private const val WAITING_MESSAGE =
-            "Approchez la carte du dos du téléphone (au centre) et maintenez-la immobile."
+            "Approchez la carte du dos du téléphone (au centre) et maintenez-la immobile. " +
+                "Retirez la coque si elle est épaisse."
         private const val NO_CARD_MESSAGE =
-            "Aucune carte détectée. Placez la carte contre le dos du téléphone, au niveau de l'antenne NFC."
+            "Aucune carte détectée. Placez la carte à plat contre le dos du téléphone, sans coque, " +
+                "au niveau de l'antenne NFC."
     }
 }
