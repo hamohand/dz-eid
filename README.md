@@ -1,81 +1,85 @@
 # dz-eid
 
-**Lecture et vérification des cartes d'identité biométriques algériennes (CNIe) et des documents ICAO 9303.**
+**Lecture et vérification souveraine des cartes d'identité biométriques algériennes (CNIe) et des documents ICAO 9303.**
 
-Une bibliothèque Java unique (`dz-eid-core`) qui se branche sur un lecteur USB ou sur un téléphone Android. On pose la carte et on obtient un JSON propre et signé : noms latins et arabes, NIN, photo, dates, autorité de délivrance.
+Une solution complète et modulaire qui permet de lire et vérifier cryptographiquement la puce d'une CNIe algérienne selon 3 modes : **Guichet USB**, **Smartphone Mobile**, et **Relais Web à distance via QR Code**.
 
-## Modules
+---
 
-| Module | Rôle |
-|---|---|
-| [`dz-eid-core`](dz-eid-core) | Bibliothèque portable (Java 17, compatible Android) : PACE/BAC, lecture des DG, décodage algérien (ISO-8859-6), Passive Authentication, contrat `IdentityRecord` |
-| [`dz-eid-agent`](dz-eid-agent) | Agent Windows : pont sécurisé entre un lecteur PC/SC et les applications web (REST + WebSocket sur `127.0.0.1:8989`) et page de démo |
-| [`flutter/dz_eid`](flutter/dz_eid) | Plugin Flutter (Android 8+) : lecture NFC par le téléphone, scan de la MRZ par la caméra, application de démo ([guide d'intégration](docs/integration-flutter.md)) |
+## 📦 Les 3 Outils / Modes d'usage
 
-## Démarrage rapide
+| Outil | Cas d'usage | Technologie | Module |
+|---|---|---|---|
+| **1. Guichet USB** | Postes de travail fixes équipés d'un lecteur sans contact PC/SC (ex: Identiv uTrust 3700 F). | Java 17/21, Javalin (REST + WS) | [`dz-eid-agent`](dz-eid-agent) |
+| **2. Mobile Autonome** | Smartphones de terrain : scan de la MRZ par caméra et lecture directe par NFC. | Flutter, Kotlin, CameraX, ML Kit | [`flutter/dz_eid`](flutter/dz_eid) |
+| **3. Relais Web (E2EE)** | Sites web distants (KYC, banques, onboarding) : scan d'un QR code pour lire la carte via un smartphone avec chiffrement de bout en bout. | Node.js, TypeScript, Web Crypto API | [`dz-eid-relay`](dz-eid-relay) & [`dz-eid-js`](dz-eid-js) |
 
-Prérequis : JDK 21 et un lecteur sans contact PC/SC (testé avec l'**Identiv uTrust 3700 F**).
+---
 
+## ⚡ Démarrage Rapide des 3 Outils
+
+> 📖 Pour un guide détaillé pas à pas, consultez le [**Guide complet de démarrage**](docs/guide-demarrage.md).
+
+### 🖥️ 1. Lancer l'Agent USB (Bureau)
 ```powershell
-.\gradlew.bat test                 # tous les tests
-.\gradlew.bat :dz-eid-agent:run    # lance l'agent
+# Depuis la racine du dépôt
+.\gradlew.bat :dz-eid-agent:run
+```
+Accès à l'interface de test : **http://127.0.0.1:8989/demo/**
+
+---
+
+### 📱 2. Déployer l'Application Mobile (Android)
+```powershell
+cd flutter/dz_eid/example
+flutter run --release
+```
+L'application s'installe sur le smartphone connecté avec support du scan MRZ caméra et lecture NFC directe.
+
+---
+
+### 🌐 3. Lancer le Relais Web & SDK (QR Code)
+```powershell
+# Terminal 1 : Démarrer le serveur relais (port 3000)
+cd dz-eid-relay
+npm install && npm start
+
+# Terminal 2 : Démarrer le site web de démo (port 5173)
+cd dz-eid-js/demo
+npm install && npm run dev
+```
+Accès au site web de démo : **http://localhost:5173/**  
+*(En local USB, exécutez `adb reverse tcp:3000 tcp:3000` pour relier le smartphone au serveur local).*
+
+---
+
+## 🧩 Architecture des Modules
+
+```
+dz-eid/
+├── dz-eid-core/            # Cœur Java pur : BAC/PACE, PA (Passive Auth), AA (Anti-clonage), ISO-8859-6
+├── dz-eid-agent/           # Service local Windows/Linux pour lecteurs USB (REST + WebSockets)
+├── flutter/
+│   └── dz_eid/             # Plugin Flutter + application exemple (Android 8+, minSdk 26)
+├── dz-eid-relay/           # Serveur relais léger en Node.js / WebSockets
+└── dz-eid-js/              # SDK JavaScript pour intégration web avec déchiffrement E2EE
+    └── demo/               # Démonstrateur web Vite / TypeScript
 ```
 
-Ouvrez ensuite **http://127.0.0.1:8989/demo/**, saisissez ou collez la MRZ, posez la carte et cliquez sur « Lire la carte ».
+---
 
-## Intégration dans une application web (3 étapes)
+## 🔐 Sécurité & Confidentialité
 
-1. Ajoutez l'origine de votre site dans `%APPDATA%\dz-eid\config.json` → `allowedOrigins`.
-2. Appelez l'agent :
+- **Chiffrement de bout en bout (E2EE)** : En mode Web, le navigateur génère une paire de clés éphémères (ECDH P-256). Le smartphone chiffre les données en AES-GCM 256 bits. Le serveur relais n'a jamais accès aux données d'identité en clair.
+- **Authenticité infalsifiable** : Contrôle de la signature de l'État algérien (Passive Authentication) et détection du clonage (Active Authentication).
+- **Zéro fuite** : En mode guichet ou mobile autonome, aucune donnée ne quitte la machine ou le téléphone.
 
-```javascript
-const res = await fetch('http://127.0.0.1:8989/v1/read', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ documentNumber: '123456789', dateOfBirth: '850312', dateOfExpiry: '310520' })
-});
-const identity = await res.json();   // contrat IdentityRecord v1
-console.log(identity.holder.lastNameArabic, identity.holder.nin);
-```
+---
 
-3. (Facultatif) Écoutez `ws://127.0.0.1:8989/v1/events` pour afficher la progression et la présence de la carte.
+## 📚 Documentation détaillée
 
-Détails : [API de l'agent](docs/api-agent-v1.md) · [Contrat JSON](docs/contrat-identity-record-v1.md).
-
-## Utilisation de la bibliothèque (Java / Android)
-
-```java
-IdentityRecord id = new EidReader().read(
-        cardService,                                    // PC/SC : TerminalCardService ; Android : IsoDep
-        AccessKey.fromMrz(mrzText),
-        ReadOptions.defaults(),
-        (step, percent, message) -> System.out.println(percent + "% " + message));
-String json = IdentityRecordJson.toJson(id);
-```
-
-Décodage hors ligne de données déjà lues (diagnostic, données transmises par un mobile) : `EidReader.decode(cardData, options)`.
-
-## Sécurité
-
-- L'agent n'écoute que sur `127.0.0.1`. Il n'accepte que les origines web configurées, sans joker. L'en-tête `Host` est vérifié, ce qui bloque le DNS rebinding.
-- Les WebSocket sont aussi filtrés par origine.
-- Les journaux ne contiennent **aucune donnée personnelle**.
-- Passive Authentication : contrôle de l'intégrité des données et de la signature de l'État. La vérification de la chaîne CSCA s'active quand des certificats sont placés dans `cscaDirectory`.
-
-## Données de test
-
-- `dz-eid-core/src/test/.../DzCardFixtures.java` : jeux d'essai **fictifs**, qui reproduisent la structure exacte des CNIe.
-- `private-fixtures/` (**ignoré par git**) : dumps de vraies cartes pour les tests de non-régression locaux. Ne jamais versionner ce dossier.
-
-## Licences tierces (à valider avant commercialisation)
-
-| Composant | Licence | Remarque |
-|---|---|---|
-| JMRTD | LGPL 3.0 | Bibliothèque séparée, non modifiée : à mentionner, et l'utilisateur doit pouvoir la remplacer |
-| SCUBA | LGPL 3.0 | Idem |
-| BouncyCastle | MIT | — |
-| Jackson, Javalin | Apache 2.0 | — |
-| jai-imageio-jpeg2000 | BSD + licence JJ2000 | Conversion de la photo : à faire vérifier par un juriste |
-| JP2ForAndroid (Thales, OpenJPEG) | BSD-2 | Conversion JPEG2000 sur Android |
-| ML Kit Text Recognition (Google) | Conditions ML Kit | Modèle embarqué, gratuit, hors ligne |
-| CameraX, AndroidX | Apache 2.0 | — |
+* [Guide de démarrage des 3 outils](docs/guide-demarrage.md)
+* [Spécification du Contrat `IdentityRecord` (v1.1)](docs/contrat-identity-record-v1.md)
+* [Documentation de l'API Agent Bureau](docs/api-agent-v1.md)
+* [Guide d'intégration du Plugin Flutter](docs/integration-flutter.md)
+* [Architecture de la Phase 3 (Relais Web)](phase3_plan.md)
