@@ -54,7 +54,7 @@ public final class EidReader {
         try {
             progress.onProgress(Step.CONNECTING, 5, "Connexion à la puce…");
             service = new PassportService(cardService, PassportService.NORMAL_MAX_TRANCEIVE_LENGTH,
-                    PassportService.DEFAULT_MAX_BLOCKSIZE, false, false);
+                    PassportService.EXTENDED_MAX_TRANCEIVE_LENGTH, false, false);
             service.open();
         } catch (CardServiceException e) {
             throw EidException.classify(e, ErrorCode.READ_ERROR, "Impossible d'ouvrir la communication avec la puce.");
