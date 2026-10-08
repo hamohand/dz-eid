@@ -2,10 +2,13 @@ import 'package:dz_eid/dz_eid.dart';
 import 'package:flutter/material.dart';
 
 import 'result_screen.dart';
+import 'web_relay.dart';
 
 /// Lecture : attente de la carte, progression, erreurs.
 class ReadScreen extends StatefulWidget {
-  const ReadScreen({super.key, required this.accessKey});
+  const ReadScreen({super.key, required this.accessKey, this.qrPayload});
+
+  final String? qrPayload;
 
   final AccessKey accessKey;
 
@@ -56,6 +59,20 @@ class _ReadScreenState extends State<ReadScreen> {
       _stopwatch.stop();
       _reading = false;
       if (!mounted) return;
+      if (widget.qrPayload != null) {
+        try {
+          setState(() => _progress = const ReadProgress(waitingForCard: false, step: 'WEB', percent: 100, message: "Chiffrement et envoi..."));
+          await WebRelayService.sendToWeb(widget.qrPayload!, record);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Envoyé avec succès !')));
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          }
+          return;
+        } catch (e) {
+          if (mounted) setState(() => _error = DzEidException('WEB_RELAY_ERROR', 'Erreur réseau: $e'));
+          return;
+        }
+      }
       Navigator.of(context).pushReplacement(MaterialPageRoute(
         builder: (_) => ResultScreen(record: record, duration: _stopwatch.elapsed),
       ));
@@ -148,3 +165,4 @@ class _ReadScreenState extends State<ReadScreen> {
     );
   }
 }
+

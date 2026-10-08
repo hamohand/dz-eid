@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DzEID Web Reader Demo</title>
+    <style>
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f4f7f6;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-top: 50px;
+      }
+      .card {
+        background: white;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        text-align: center;
+        max-width: 500px;
+        width: 100%;
+      }
+      #qr-container img {
+        margin-top: 20px;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        padding: 10px;
+      }
+      .loader {
+        margin-top: 15px;
+        color: #666;
+      }
+      .result {
+        text-align: left;
+        margin-top: 20px;
+        display: none;
+      }
+      .photo {
+        width: 120px;
+        height: auto;
+        border-radius: 6px;
+        border: 1px solid #ddd;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h2>Vérification d'identité</h2>
+      <p>Scannez le QR Code suivant avec l'application <strong>dz-eid</strong> sur votre téléphone.</p>
+      
+      <div id="qr-container">
+        <!-- QR Code will be injected here -->
+      </div>
+      
+      <div id="loader" class="loader">
+        En attente de la lecture sur le téléphone...
+      </div>
+
+      <div id="result" class="result">
+        <h3>Identité confirmée ✅</h3>
+        <img id="res-photo" class="photo" src="" alt="Photo" />
+        <p><strong>Nom :</strong> <span id="res-nom"></span></p>
+        <p><strong>Prénom :</strong> <span id="res-prenom"></span></p>
+        <p><strong>Date de naissance :</strong> <span id="res-dob"></span></p>
+      </div>
+    </div>
+    
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -19,3 +19,7 @@ private-fixtures/
 
 # Configuration locale de l'agent
 config.local.json
+
+# Node
+node_modules/
+dist/

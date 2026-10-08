@@ -2,8 +2,12 @@ import 'package:dz_eid/dz_eid.dart';
 import 'package:flutter/material.dart';
 
 import 'key_screen.dart';
+import 'qr_scanner_screen.dart';
+
+import 'package:cryptography_flutter/cryptography_flutter.dart';
 
 void main() {
+  FlutterCryptography.enable();
   runApp(const DzEidDemoApp());
 }
 
@@ -94,6 +98,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 : null,
             icon: const Icon(Icons.contactless),
             label: const Padding(padding: EdgeInsets.all(12), child: Text('Lire une carte')),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _status == NfcStatus.available
+                ? () async {
+                    
+                    final qrPayload = await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const QrScannerScreen()));
+                    if (qrPayload != null && mounted) {
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => KeyScreen(qrPayload: qrPayload)));
+                    }
+                  }
+                : null,
+            icon: const Icon(Icons.qr_code_scanner),
+            label: const Padding(padding: EdgeInsets.all(12), child: Text('Relais Web (Scan QR Code)')),
           ),
         ],
       ),

@@ -6,7 +6,9 @@ import 'read_screen.dart';
 
 /// Clé d'accès : scan de la MRZ par la caméra, ou saisie manuelle.
 class KeyScreen extends StatefulWidget {
-  const KeyScreen({super.key});
+  const KeyScreen({super.key, this.qrPayload});
+
+  final String? qrPayload;
 
   @override
   State<KeyScreen> createState() => _KeyScreenState();
@@ -51,7 +53,7 @@ class _KeyScreenState extends State<KeyScreen> {
   }
 
   void _read(AccessKey key) {
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReadScreen(accessKey: key)));
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReadScreen(accessKey: key, qrPayload: widget.qrPayload)));
   }
 
   @override
