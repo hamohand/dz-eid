@@ -79,6 +79,7 @@ dz-eid/
 ## 📚 Documentation détaillée
 
 * [Guide de démarrage des 3 outils](docs/guide-demarrage.md)
+* [Arguments Commerciaux & Stratégie GTM](docs/arguments_commerciaux.md)
 * [Spécification du Contrat `IdentityRecord` (v1.1)](docs/contrat-identity-record-v1.md)
 * [Documentation de l'API Agent Bureau](docs/api-agent-v1.md)
 * [Guide d'intégration du Plugin Flutter](docs/integration-flutter.md)
